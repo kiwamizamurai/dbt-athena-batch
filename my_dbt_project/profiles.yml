@@ -1,0 +1,12 @@
+my_dbt_project:
+  target: dev
+  outputs:
+    dev:
+      type: athena
+      s3_staging_dir: s3://hogehoge-bucket/athena_output_location/
+      region_name: ap-northeast-1
+      schema: some_athena_database_for_default
+      database: awsdatacatalog
+      poll_interval: 5
+      work_group: some_athena_work_group # enforce_workgroup_configuration = false
+      num_retries: 1
