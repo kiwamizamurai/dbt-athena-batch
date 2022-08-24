@@ -1,0 +1,15 @@
+{
+    "command": [
+        "dbt",
+        "--no-use-colors",
+        "--log-format",
+        "json",
+        "run",
+        "--profiles-dir",
+        "."
+    ],
+    "image": "${aws_ecr_repository__dbt__repository_url}",
+    "memory": 1024,
+    "vcpus": 1,
+    "jobRoleArn": "${aws_iam_role__job_role__arn}"
+}
