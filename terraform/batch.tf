@@ -12,7 +12,11 @@ resource "aws_batch_job_definition" "dwh" {
   )
 
   lifecycle {
-    ignore_changes = [container_properties]
+    ignore_changes = [
+      container_properties,
+      arn,
+      revision,
+    ]
   }
 }
 

@@ -1,0 +1,54 @@
+name: Build and Deploy dbt
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_OIDC_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/tmp-terraform-dbt-githubactions
+  AWS_BATCH_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/tmp-terraform-dbt-batch-job-role
+
+jobs:
+  main:
+    name: OIDC dbt
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Configure AWS credentials from test account
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: ${{ env.AWS_OIDC_ROLE_ARN }}
+          aws-region: ap-northeast-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: YOUR_ORGANIZATION/YOUR_REPOSITORY
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./my_dbt_project/
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+
+      - name: Deploy AWS Batch job definition
+        id: deploy-job-def
+        env:
+          aws_ecr_repository__dbt__repository_url: ${{ steps.build-image.outputs.image }}
+          aws_iam_role__job_role__arn: ${{ env.AWS_BATCH_ROLE_ARN }}
+        run: |
+          aws batch register-job-definition \
+            --job-definition-name 'tmp-terraform-dbt-batch-job-definition' \
+            --type 'container' \
+            --platform-capabilities 'EC2' \
+            --propagate-tags \
+            --container-properties "$(cat ./terraform/job_definition/dbt.json | envsubst)"
